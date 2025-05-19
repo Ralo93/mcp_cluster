@@ -13,3 +13,14 @@
 
 ## Embedding Model:
 
+sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+
+## Considerations:
+
+EMBEDDING MODEL
+LENGTH OF WORDS
+MIN CLUSTER SIZE
+UMAP DIMENSION
+CUSTOM STOPWORDS
+KeyBERTInspired() VS MaximalMarginalRelevance
+
