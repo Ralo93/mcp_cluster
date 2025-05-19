@@ -13,4 +13,3 @@
 
 ## Embedding Model:
 
-![image](https://github.com/user-attachments/assets/c08ec909-9109-4ed3-beaa-bf9c874322f8)
