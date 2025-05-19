@@ -5,17 +5,40 @@ from hdbscan import HDBSCAN
 from bertopic import BERTopic
 from bertopic.representation import KeyBERTInspired
 import pandas as pd
-import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-import streamlit as st
+
+import nltk
+from nltk.corpus import stopwords
+
+from bertopic.representation import MaximalMarginalRelevance
+
+from sklearn.feature_extraction.text import CountVectorizer
+
+CUSTOM_STOPWORDS = {
+    "herr", "wirklich", "dem", "war", "deshalb", "doch", "natürlich", "sondern", "deswegen", "dazu", "dr", "deswegen", "dafür", "gerade",
+    "uns", "an", "hat", "was", "ihnen", "im", "man", "jetzt", "muss", "müssen", "brauchen", "gesagt", "dank", "unsere", "dank", "sagen", 
+    "dann", "dieser", "diese", "diesen", "als", "weil", "gesagt",
+    "daher", "des", "ein", "eine", "auf", "dass", 
+    "noch", "mal", "bitte", "vielleicht", "sie", 
+    "wir", "nicht", "in", "zu", "auch", "es", "der", "bei", "den" ,"haben", "aber", "präsidentin", "diesem", "denn", "du"
+}
+
+
+
+# Create CountVectorizer with custom stopwords
+vectorizer = CountVectorizer(stop_words=list(CUSTOM_STOPWORDS))
 
 class TopicModeler:
     def __init__(self, embedding_model, umap_model, hdbscan_model):
         # Initialize KeyBERTInspired representation model
+
         self.representation_model = KeyBERTInspired()
-        
+        #self.representation_model = MaximalMarginalRelevance(diversity=0.6)
+
         # Initialize BERTopic with the representation model
         self.model = BERTopic(
+            language="german",
+            vectorizer_model=vectorizer, # not working - use later in update_topics which actually works
             embedding_model=embedding_model,
             umap_model=umap_model,
             hdbscan_model=hdbscan_model,
@@ -46,7 +69,9 @@ class TopicModeler:
         
         try:
             # Update topics with KeyBERTInspired representation
-            self.model.update_topics(texts, representation_model=self.representation_model)
+            self.model.update_topics(texts, representation_model=self.representation_model,
+            vectorizer_model=vectorizer  #  inject the custom stopword-aware vectorizer #TODO This actually works!
+        )
             print("✅ Successfully updated topics with KeyBERTInspired representation")
         except Exception as e:
             print(f"⚠️ Failed to update topics: {str(e)}")
@@ -132,10 +157,18 @@ class TopicModeler:
             topic_id = row['Topic']
             if topic_id != -1:  # Skip the outlier topic
                 # Get the full topic description (words and weights)
-                topic_words = self.model.get_topic(topic_id)
+                # Custom list of words to exclude
+                EXCLUDE_WORDS = {"herr", "wirklich", "ein", "eine", "auf", "dass", "noch", "mal", "bitte", "vielleicht"}
+
+                # Get the full topic
+                raw_topic_words = self.model.get_topic(topic_id)
+
+                # Filter out excluded words
+                topic_words = [(word, score) for word, score in raw_topic_words if word.lower() not in EXCLUDE_WORDS]
+
                 
                 # Create a concise description from top words
-                description = ", ".join([word for word, _ in topic_words[:5]])
+                description = ", ".join([word for word, _ in topic_words[:15]])
                 
                 # Create record
                 topic_data.append({
@@ -143,7 +176,7 @@ class TopicModeler:
                     "name": f"Topic {topic_id}",
                     "description": description,
                     "count": int(row['Count']),
-                    "words_json": json.dumps(topic_words[:10])  # Store top 10 words as JSON
+                    "words_json": json.dumps(topic_words[:15])  # Store top 10 words as JSON
                 })
         
         # Convert to DataFrame for easier DB insertion

@@ -1,4 +1,3 @@
-
 import json
 import os
 
@@ -11,6 +10,9 @@ from topic_modeler import TopicModeler
 from umap import UMAP
 from hdbscan import HDBSCAN
 import joblib
+
+LENGTH_DESC = 10 # no need to also change it in topic_modeler
+MIN_CLUSTER_SIZE = 100
 
 def main():
     # === Configuration ===
@@ -26,12 +28,14 @@ def main():
     DB_URL = build_db_url(DB_CONFIG)
 
     # === Flags for processing steps ===
-    LOAD_FROM_DB = False  # Set to True to load from DB instead of CSV
-    SKIP_EMBEDDING = False  # Set to True to skip embedding generation
+    LOAD_FROM_DB = True  # Set to True to load from DB instead of CSV
+    SKIP_EMBEDDING = True  # Set to True to skip embedding generation
     SKIP_CLUSTERING = False  # Set to True to skip clustering
     SKIP_TOPIC_MODELING = False  # Set to True to skip topic modeling
-    SKIP_DASHBOARD = False  # Set to True to skip dashboard
+    #SKIP_DASHBOARD = False  # Set to True to skip dashboard
     MODEL_DIR = "models"
+            
+    os.makedirs(MODEL_DIR, exist_ok=True)
 
     try:
         # === Load and Prepare ===
@@ -91,9 +95,11 @@ def main():
         has_embeddings = all(s.embedding is not None for s in speech_objs)
         
         # === Embedding ===
-        if not has_embeddings and not SKIP_EMBEDDING:
+        if not SKIP_EMBEDDING:
             print("🔄 Generating embeddings...")
-            embedder = Embedder(db_url=DB_URL)
+
+            #TODO Changed Embedding Model: intfloat/multilingual-e5-large
+            embedder = Embedder(db_url=DB_URL)#, model_name="intfloat/multilingual-e5-large")
             embeddings = embedder.encode(texts)
             
             # Assign embeddings to speech objects
@@ -102,6 +108,13 @@ def main():
                 
             # Store embeddings in pgvector table
             embedder.store_pgvector(embeddings, ids=[str(i) for i in range(len(speech_objs))])
+
+            # Save embedding model if it's a HuggingFace model
+            if hasattr(embedder.model, "save_pretrained"):
+                embedder.model.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
+                embedder.tokenizer.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
+            else:
+                print("⚠️ Embedding model is not a HuggingFace model and cannot be saved this way.")
         else:
             print("✅ Using existing embeddings.")
             embedder = Embedder(db_url=DB_URL)
@@ -110,34 +123,40 @@ def main():
         
         # === Clustering ===
         has_clusters = all(s.cluster is not None for s in speech_objs)
+        #print(has_clusters)
         
-        if not has_clusters and not SKIP_CLUSTERING:
+        if not SKIP_CLUSTERING:
             print("🔄 Clustering speeches...")
-            clusterer = Clusterer(min_cluster_size=3)  # Adjust min_cluster_size based on your data size
-            reduced = clusterer.reduce(embeddings)
+            clusterer = Clusterer(min_cluster_size=MIN_CLUSTER_SIZE)  # Adjust min_cluster_size based on your data size
+            reduced = clusterer.reduce(embeddings) # THis id the reduced_2d_projection
             clusters = clusterer.cluster(reduced)
             
             # Assign clusters to speech objects
             for i, s in enumerate(speech_objs):
                 s.cluster = int(clusters[i])
                 s.cluster_desc = f"Cluster {clusters[i]}"
+
+                        # Save UMAP reducer and HDBSCAN clusterer
+            joblib.dump(clusterer.umap, os.path.join(MODEL_DIR, "umap_model.pkl"))
+            joblib.dump(clusterer.hdbscan, os.path.join(MODEL_DIR, "hdbscan_model.pkl"))
+
+            #reduced_2d = UMAP(n_components=2, min_dist=0.0, metric='cosine').fit_transform(embeddings)
+            #joblib.dump(reduced_2d, os.path.join(MODEL_DIR, "reduced_2d_projection.pkl"))
+
         else:
-            print("✅ Using existing clusters.")
+            print("✅ Skipping clustering.")
             clusterer = Clusterer()
             # Just reduce for visualization
-            reduced = clusterer.reduce(embeddings)
+            #reduced = clusterer.reduce(embeddings)
+            #reduced_2d = UMAP(n_components=2, min_dist=0.0, metric='cosine').fit_transform(embeddings)
+            #joblib.dump(reduced_2d, os.path.join(MODEL_DIR, "reduced_2d_projection.pkl"))
 
-        
-        os.makedirs(MODEL_DIR, exist_ok=True)
 
-        # Save UMAP reducer and HDBSCAN clusterer
-        joblib.dump(clusterer.umap, os.path.join(MODEL_DIR, "umap_model.pkl"))
-        joblib.dump(clusterer.hdbscan, os.path.join(MODEL_DIR, "hdbscan_model.pkl"))
 
         # === Topic Modeling ===
         has_topics = all(s.topic is not None for s in speech_objs)
 
-        if not has_topics and not SKIP_TOPIC_MODELING:
+        if not SKIP_TOPIC_MODELING:
             print("🔄 Generating topic model...")
             topic_modeler = TopicModeler(embedder.model, clusterer.umap, clusterer.hdbscan)
             tm = topic_modeler.fit(texts, embeddings)
@@ -146,11 +165,11 @@ def main():
             try:
                 topics, _ = topic_modeler.transform(texts, embeddings)
                 
-                # Assign topics to speech objects
+                # Assign topics to speech objectss
                 for i, s in enumerate(speech_objs):
                     s.topic = topics[i]
                     topic_words = tm.get_topic(s.topic)
-                    s.topic_desc = ", ".join([w[0] for w in topic_words[:5]]) if topic_words else "No topic"
+                    s.topic_desc = ", ".join([w[0] for w in topic_words[:LENGTH_DESC]]) if topic_words else "No topic"
             except Exception as e:
                 print(f"⚠️ Topic assignment failed: {str(e)}")
                 print("⚠️ Continuing without topic assignments")
@@ -163,19 +182,6 @@ def main():
         
         # Save topic model
         joblib.dump(tm, os.path.join(MODEL_DIR, "topic_model.pkl"))
-        # === 2D Projection for visualization ===
-        print("🔄 Generating 2D projection for visualization...")
-
-        # Save embedding model if it's a HuggingFace model
-        if hasattr(embedder.model, "save_pretrained"):
-            embedder.model.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
-            embedder.tokenizer.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
-        else:
-            print("⚠️ Embedding model is not a HuggingFace model and cannot be saved this way.")
-
-        reduced_2d = UMAP(n_components=2, min_dist=0.0, metric='cosine').fit_transform(embeddings)
-
-        joblib.dump(reduced_2d, os.path.join(MODEL_DIR, "reduced_2d_projection.pkl"))
 
         # === Save all processed data to database ===
         print("🔄 Saving processed data to database...")

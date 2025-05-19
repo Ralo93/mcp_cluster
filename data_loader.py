@@ -5,6 +5,8 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 
+import ast  # this is against some sqlalchemy + psy
+
 @dataclass
 class Speech:
     content: str
@@ -115,6 +117,7 @@ class DataLoader:
         
         # Adjust table creation SQL based on vector availability
         if vector_available:
+            print("PGVECTOR working!!")
             create_table_sql = f"""
             CREATE TABLE IF NOT EXISTS {table} (
                 id SERIAL PRIMARY KEY,
@@ -124,7 +127,7 @@ class DataLoader:
                 position TEXT,
                 date TEXT,
                 faction TEXT,
-                embedding VECTOR(384),
+                embedding VECTOR(384), 
                 cluster INTEGER,
                 topic INTEGER,
                 topic_desc TEXT,
@@ -132,6 +135,7 @@ class DataLoader:
             );
             """
         else:
+            print("PGVECTOR not working!!")
             # Alternative: store embeddings as JSON array if pgvector not available
             create_table_sql = f"""
             CREATE TABLE IF NOT EXISTS {table} (
@@ -254,6 +258,20 @@ class DataLoader:
                 df['embedding'] = df['embedding_json'].apply(lambda x: json.loads(x) if isinstance(x, str) else None)
             
             print(f"✅ Loaded {len(df)} speeches from database.")
+
+
+            # After loading df to check against sqlalchemy and psyogps2 compatibility problems
+            if 'embedding' in df.columns:
+                def parse_vector(e):
+                    if isinstance(e, str):
+                        try:
+                            return ast.literal_eval(e)
+                        except Exception:
+                            return None
+                    return e
+
+                df['embedding'] = df['embedding'].apply(parse_vector)
+
             return df
         except Exception as e:
             print(f"❌ Failed to load speeches from database: {str(e)}")

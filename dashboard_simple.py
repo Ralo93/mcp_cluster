@@ -14,6 +14,27 @@ import os
 from umap import UMAP
 import colorsys
 
+from bertopic import BERTopic
+
+MODEL_PATH = "models/topic_model.pkl"
+
+def load_model(path=MODEL_PATH):
+    return BERTopic.load(path)
+
+def load_data_from_db():
+    db_url = build_db_url(DB_CONFIG)
+    engine = create_engine(db_url)
+    
+    query = f"""
+        SELECT content, politician, term, position, date, faction
+        FROM {DB_CONFIG['document_table']}
+        WHERE content IS NOT NULL AND date IS NOT NULL
+    """
+    df = pd.read_sql(query, engine)
+    df['date'] = pd.to_datetime(df['date'])
+    return df
+
+
 @dataclass
 class Speech:
     content: str
@@ -278,7 +299,7 @@ class Dashboard:
             st.session_state.color_by = color_by_sidebar
             
             # Marker size and opacity
-            marker_size = st.slider("Marker Size", min_value=5, max_value=20, value=10, key="sidebar_marker_size")
+            #marker_size = st.slider("Marker Size", min_value=5, max_value=20, value=10, key="sidebar_marker_size")
             marker_opacity = st.slider("Marker Opacity", min_value=0.1, max_value=1.0, value=0.7, step=0.1, key="sidebar_marker_opacity")
             
             # Advanced settings
@@ -310,209 +331,116 @@ class Dashboard:
         # Get the current color_by setting from session state
         color_by = st.session_state.color_by
         
-        # Set color configuration based on selection
-        if color_by == "Faction":
-            color_column = 'faction'
-            color_map = self.party_colors
-            hover_data = ['politician', 'position', 'date', 'cluster']
-        else:  # Cluster
-            color_column = 'cluster'
-            color_map = self.cluster_colors
-            hover_data = ['politician', 'position', 'date', 'faction']
-
-
         with tab1:
-            # Move color toggle from sidebar to top of visualization tab
-            st.subheader("Visualization Controls")
-            
-            # Create a row for controls
-            control_col1, control_col2, control_col3 = st.columns([1, 1, 1])
-            
-            with control_col1:
-                # Color scheme selection moved from sidebar - sync with session state
-                tab1_color_by = st.radio(
-                    "Color by:", 
-                    ["Faction", "Cluster"], 
-                    index=0 if st.session_state.color_by == "Faction" else 1,
-                    horizontal=True,
-                    key="tab1_color_by"
-                )
-                # Update session state when tab control changes
-                st.session_state.color_by = tab1_color_by
-                # Update local color_by variable
-                color_by = tab1_color_by
-                
-                # Update color configuration based on new selection
-                if color_by == "Faction":
-                    color_column = 'faction'
-                    color_map = self.party_colors
-                    hover_data = ['politician', 'position', 'date', 'cluster']
-                else:  # Cluster
-                    color_column = 'cluster'
-                    color_map = self.cluster_colors
-                    hover_data = ['politician', 'position', 'date', 'faction']
-            
-            with control_col2:
-                # Marker size control
-                marker_size = st.slider("Marker Size", min_value=5, max_value=20, value=10, key="tab1_marker_size")
-            
-            with control_col3:
-                # Show cluster labels
-                show_cluster_labels = st.checkbox("Show cluster labels", value=True, key="tab1_show_labels")
-            
-            # Create two columns for visualization and speech details
-            viz_col, speech_col = st.columns([2, 1])
-            
-            with viz_col:
-                # Create interactive scatter plot with plotly
-                fig = px.scatter(
-                    df, x='x', y='y',
-                    color=color_column,
-                    color_discrete_map=color_map,
-                    hover_data=hover_data,
-                    custom_data=['speech_index', 'content_preview', 'topic', 'topic_desc', 'cluster_desc'],
-                    height=700,
-                    title="Speech Embedding Visualization"
-                )
-                
-                # Enhanced hover template with topic and cluster descriptions
-                hover_template = (
-                    "<b>Speech %{customdata[0]}</b><br><br>" +
-                    "Politician: %{customdata[1]}<br>" +
-                    "Position: %{customdata[2]}<br>" +
-                    "Date: %{customdata[3]}<br>"
-                )
-                
-                # Add topic and cluster information to hover template based on color
-                if color_by == "Faction":
-                    hover_template += (
-                        "Cluster: %{customdata[4]}<br>" +
-                        "Cluster Description: %{customdata[6]}<br>" +
-                        "Topic: %{customdata[5]}<br>" +
-                        "Topic Description: %{customdata[7]}<br>" +
-                        "Preview: %{customdata[8]}"
-                    )
-                else:  # Cluster
-                    hover_template += (
-                        "Faction: %{customdata[4]}<br>" +
-                        "Cluster Description: %{customdata[6]}<br>" +
-                        "Topic: %{customdata[5]}<br>" +
-                        "Topic Description: %{customdata[7]}<br>" +
-                        "Preview: %{customdata[8]}"
-                    )
-                
-                # Configure marker appearance
-                fig.update_traces(
-                    marker=dict(size=marker_size, opacity=marker_opacity),
-                    hovertemplate=hover_template
-                )
-                
-                # Add cluster centroids if showing by cluster
-                if color_by == "Cluster" and show_cluster_labels:
-                    # Calculate cluster centroids
-                    cluster_centroids = {}
-                    for cluster_id in unique_clusters:
-                        mask = df['cluster'] == cluster_id
-                        if mask.any():
-                            x_centroid = df.loc[mask, 'x'].mean()
-                            y_centroid = df.loc[mask, 'y'].mean()
-                            
-                            # Get the most common cluster description for this cluster
-                            cluster_descs = df.loc[mask, 'cluster_desc'].dropna()
-                            most_common_desc = cluster_descs.mode()[0] if not cluster_descs.empty else f"Cluster {cluster_id}"
-                            
-                            cluster_centroids[cluster_id] = (x_centroid, y_centroid, most_common_desc)
-                    
-                    # Add text annotations for cluster labels with descriptions
-                    for cluster_id, (x, y, desc) in cluster_centroids.items():
-                        # Truncate description if too long
-                        short_desc = f"{desc[:20]}..." if len(desc) > 20 else desc
-                        
-                        fig.add_annotation(
-                            x=x, y=y,
-                            text=f"Cluster {cluster_id}: {short_desc}",
-                            showarrow=True,
-                            arrowhead=1,
-                            arrowsize=1,
-                            arrowwidth=2,
-                            arrowcolor="#636363",
-                            font=dict(size=12, color="#ffffff"),
-                            bgcolor=self.cluster_colors.get(cluster_id, "#000000"),
-                            bordercolor="#c7c7c7",
-                            borderwidth=2,
-                            borderpad=4,
-                            opacity=0.9
-                        )
-                
-                # Update layout
-                fig.update_layout(
-                    margin=dict(l=0, r=0, t=30, b=0),
-                    xaxis_title="", 
-                    yaxis_title="",
-                    legend_title=color_by,
-                    hovermode="closest"
-                )
-                
-                # Use Streamlit's native chart click
-                selected_points = st.plotly_chart(fig, use_container_width=True, key="scatter")
-                
-                # Store selected speech in session state
-                if 'selected_speech_idx' not in st.session_state:
-                    st.session_state.selected_speech_idx = None
-                    
-                # Handle click events - REMOVED the instruction message
-                chart_data = st.session_state.get("scatter_clicked_data", None)
-                if chart_data is not None and "points" in chart_data and len(chart_data["points"]) > 0:
-                    point = chart_data["points"][0]
-                    if "customdata" in point and len(point["customdata"]) > 0:
-                        speech_idx = int(point["customdata"][0])
-                        st.session_state.selected_speech_idx = speech_idx
-                        
-                # Add cluster and topic legend if coloring by cluster
-                if color_by == "Cluster" and show_cluster_labels:
-                    with st.expander("Cluster & Topic Descriptions", expanded=False):
-                        # Create a concise legend for clusters and topics
-                        legend_data = []
-                        for cluster_id in sorted(unique_clusters):
-                            mask = df['cluster'] == cluster_id
-                            if mask.any():
-                                # Get most common cluster description
-                                cluster_descs = df.loc[mask, 'cluster_desc'].dropna()
-                                cluster_desc = cluster_descs.mode()[0] if not cluster_descs.empty else ""
-                                
-                                # Get most common topics and their descriptions
-                                topics = df.loc[mask, 'topic'].dropna()
-                                topic_counts = topics.value_counts().head(3)
-                                
-                                # Collect top 3 topics for this cluster
-                                top_topics = []
-                                for topic_id, count in topic_counts.items():
-                                    topic_mask = (df['cluster'] == cluster_id) & (df['topic'] == topic_id)
-                                    if topic_mask.any():
-                                        topic_descs = df.loc[topic_mask, 'topic_desc'].dropna()
-                                        topic_desc = topic_descs.mode()[0] if not topic_descs.empty else ""
-                                        top_topics.append((topic_id, topic_desc, count))
-                                
-                                legend_data.append({
-                                    "Cluster": cluster_id,
-                                    "Color": self.cluster_colors.get(cluster_id, "#000000"),
-                                    "Description": cluster_desc,
-                                    "Count": mask.sum(),
-                                    "Top Topics": top_topics
-                                })
-                        
-                        # Display legend
-                        for item in legend_data:
-                            color_box = f"<div style='background-color: {item['Color']}; width: 20px; height: 20px; display: inline-block; margin-right: 8px;'></div>"
-                            st.markdown(f"{color_box} <b>Cluster {item['Cluster']}</b> ({item['Count']} speeches): {item['Description']}", unsafe_allow_html=True)
-                            
-                            if item['Top Topics']:
-                                st.markdown("Top Topics:")
-                                for topic_id, desc, count in item['Top Topics']:
-                                    st.markdown(f"&nbsp;&nbsp;• Topic {topic_id} ({count} speeches): {desc}")
-                                st.markdown("---")
+            topic_model = load_model()
 
-        # Cluster Analysis tab
+            topic_info = topic_model.get_topic_info()
+            topic_descriptions = topic_info[topic_info.Topic != -1]["Name"].tolist()
+
+            # Build color map using topic_desc as key
+            topic_colors = px.colors.qualitative.Alphabet
+            topic_color_map = {
+                desc: topic_colors[i % len(topic_colors)]
+                for i, desc in enumerate(topic_descriptions)
+            }
+
+            # Optional: Assign black to outliers
+            topic_color_map["-1"] = "#000000"
+
+            # Prepare data from self.speeches and 2D projection
+            data = {
+                'x': self.embeddings_2d[:, 0],
+                'y': self.embeddings_2d[:, 1],
+                'cluster': [s.cluster for s in self.speeches],
+                'topic': [s.topic for s in self.speeches],
+                'topic_desc': [s.topic_desc for s in self.speeches],
+                'cluster_desc': [s.cluster_desc for s in self.speeches],
+                'faction': [s.faction for s in self.speeches],
+                'politician': [s.politician for s in self.speeches],
+                'position': [s.position for s in self.speeches],
+                'date': [s.date for s in self.speeches],
+                'content_preview': [
+                    s.content[:100] + "..." if len(s.content) > 100 else s.content
+                    for s in self.speeches
+                ],
+                'content_full': [
+                    s.content[:] for s in self.speeches
+                ],
+                'speech_index': list(range(len(self.speeches)))
+            }
+            df = pd.DataFrame(data)
+
+            #st.subheader("Visualization Controls")
+
+           
+
+
+            control_col1, control_col2 = st.columns([2, 1])
+
+            with control_col1:
+                color_mode = st.radio(
+                    "View Mode",
+                    ["Topic View", "Faction View"],
+                    key="viz_color_mode",
+                    horizontal=True
+                )
+
+
+            if color_mode == "Faction View":
+                fig = px.scatter(
+                    df, x="x", y="y",
+                    color="faction",
+                    hover_data=["politician", "date", "topic_desc"],
+                    custom_data=["speech_index", "content_preview", "topic", "topic_desc", "cluster_desc"],
+                    color_discrete_map=self.party_colors,
+                    height=700
+                )
+
+                fig.update_traces(marker=dict(size=13, opacity=0.8))
+                fig.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+
+                st.plotly_chart(fig, use_container_width=True)
+
+            else:
+                st.subheader("🧠 Speech Map by Topic")
+
+                
+
+
+
+                fig = px.scatter(
+                    df, x="x", y="y",
+                    color="topic_desc",
+                    color_discrete_map=topic_color_map,
+                    hover_data=["politician", "faction", "date", "topic_desc"],
+                    custom_data=["speech_index", "content_preview", "topic", "topic_desc", "cluster_desc"],
+                    height=700
+                )
+
+                fig.update_traces(marker=dict(size=13, opacity=0.8))
+                fig.update_layout(margin=dict(l=0, r=0, t=30, b=0))
+
+                st.plotly_chart(fig, use_container_width=True)
+
+
+            #st.subheader("📌 Topic Overview")
+            #st.plotly_chart(topic_model.visualize_barchart(top_n_topics=8), use_container_width=True)
+  
+            # Button to trigger loading of faction insights
+            if st.button("🔍 Load Faction Insights"):
+               
+                st.subheader("📎 Topics by Faction")
+                topics_per_class = topic_model.topics_per_class(
+                    docs=df["content_full"],  # Or [s.content for s in self.speeches]
+                    classes=df["faction"]
+                )
+                st.plotly_chart(topic_model.visualize_topics_per_class(topics_per_class, top_n_topics=None, custom_labels=True), use_container_width=True)
+            else:
+                st.info("Click the button above to load topic statistics by faction.")
+
+            
+
+
         with tab2:
             # Get unique clusters and count speeches
             clusters = {}
@@ -727,6 +655,7 @@ class Dashboard:
                 selected_faction = st.selectbox("Filter by Faction:", factions)
             
             with col2:
+                #TODO Filter by topic description
                 # Filter by cluster
                 clusters = ["All"] + sorted(set(str(s.cluster) for s in self.speeches if s.cluster is not None))
                 selected_cluster = st.selectbox("Filter by Cluster:", clusters)

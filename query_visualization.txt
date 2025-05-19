@@ -1,0 +1,81 @@
+ import pickle
+            from sentence_transformers import SentenceTransformer
+
+            #TODO COntinue here
+            #st.subheader("🔍 Add Custom Speech to Visualization")
+
+            #user_input = st.text_area("Enter your speech text here:")
+
+            if st.button("Embed and Add to Map"):
+                if user_input.strip():
+                    #st.write("📦 Loading embedding model...")
+                    embedder = SentenceTransformer("models/embedding_model")
+                    
+                    #st.write("📦 Loading UMAP model...")
+                    with open("models/umap_model.pkl", "rb") as f:
+                        import joblib
+                        umap_model = joblib.load("models/umap_model.pkl")
+
+                    #st.write("📈 Generating embedding...")
+                    emb = embedder.encode([user_input])
+                    #st.write("✅ Embedding shape:", emb.shape)
+
+                    #st.write("🔄 Reducing to 2D...")
+                    reduced_2d = umap_model.transform(emb)
+                    print(reduced_2d)
+                    #st.write("✅ Reduced coordinates:", reduced_2d[0])
+
+                    # Create a new point with clear labeling
+                    new_point = pd.DataFrame({
+                        "x": [reduced_2d[0][0]],
+                        "y": [reduced_2d[0][1]],
+                        "topic_desc": ["Your Speech"],
+                        "faction": ["Custom"],
+                        "politician": ["You"],
+                        "date": [datetime.now().date()],
+                        "content_preview": [user_input[:100] + "..." if len(user_input) > 100 else user_input],
+                    })
+
+                    # Append to full dataframe
+                    df_combined = pd.concat([df, new_point], ignore_index=True)
+                    #st.write("✅ Combined DataFrame now has", len(df_combined), "rows")
+
+                    # Add or override topic color
+                    topic_color_map["Your Speech"] = "#000000"  # Black for user input
+
+                    # Create plot
+                    fig = px.scatter(
+                        df_combined, x="x", y="y",
+                        color="topic_desc",
+                        color_discrete_map=topic_color_map,
+                        hover_data=["politician", "faction", "date", "topic_desc"],
+                        custom_data=["content_preview"],
+                        height=700
+                    )
+
+                    # Make the user point visually distinct
+                    fig.update_traces(
+                        marker=dict(size=13, opacity=0.8),
+                        selector=dict(mode='markers')
+                    )
+
+                    # Manually add overlay trace for user speech
+                    fig.add_trace(go.Scatter(
+                        x=[reduced_2d[0][0]],
+                        y=[reduced_2d[0][1]],
+                        mode='markers+text',
+                        marker=dict(
+                            color="#000000",
+                            size=25,
+                            symbol='x',
+                            line=dict(color='white', width=2)
+                        ),
+                        text=["You"],
+                        textposition="top center",
+                        name="Your Speech"
+                    ))
+
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Please enter a speech text.")
+
