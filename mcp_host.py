@@ -4,10 +4,12 @@ import gradio as gr
 
 try:
     # Connect to local MCP server
-    mcp_client = MCPClient({"url": "http://127.0.0.1:7860/"})
+    mcp_client = MCPClient({"url": "http://127.0.0.1:7860"})
     
     # Load the tools registered by the MCP server
     tools = mcp_client.get_tools()
+
+    print(tools)
     
     # Load an inference model and create the agent with the tools
     model = InferenceClientModel()

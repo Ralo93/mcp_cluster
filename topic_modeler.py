@@ -15,18 +15,25 @@ from bertopic.representation import MaximalMarginalRelevance
 from sklearn.feature_extraction.text import CountVectorizer
 
 CUSTOM_STOPWORDS = {
-    "herr", "wirklich", "dem", "war", "deshalb", "doch", "natürlich", "sondern", "deswegen", "dazu", "dr", "deswegen", "dafür", "gerade",
-    "uns", "an", "hat", "was", "ihnen", "im", "man", "jetzt", "muss", "müssen", "brauchen", "gesagt", "dank", "unsere", "dank", "sagen", 
-    "dann", "dieser", "diese", "diesen", "als", "weil", "gesagt",
+
+    "herr", "wirklich", "dem", "war", "deshalb", 
+    "doch", "natürlich", "sondern", "deswegen", 
+    "dazu", "dr", "deswegen", "dafür", "gerade",
+    "uns", "an", "hat", "was", "ihnen", "im", 
+    "man", "jetzt", "muss", "müssen", "brauchen", 
+    "gesagt", "dank", "unsere", "dank", "sagen", 
+    "dann", "dieser", "diese", "diesen", "als", 
+    "weil", "gesagt", "hier", "heute", "damit", 
     "daher", "des", "ein", "eine", "auf", "dass", 
     "noch", "mal", "bitte", "vielleicht", "sie", 
-    "wir", "nicht", "in", "zu", "auch", "es", "der", "bei", "den" ,"haben", "aber", "präsidentin", "diesem", "denn", "du"
+    "wir", "nicht", "in", "zu", "auch", "es", 
+    "der", "bei", "den" ,"haben", "aber", 
+    "präsidentin", "diesem", "denn", "du"
 }
 
 
-
 # Create CountVectorizer with custom stopwords
-vectorizer = CountVectorizer(stop_words=list(CUSTOM_STOPWORDS))
+vectorizer = CountVectorizer(stop_words=list(CUSTOM_STOPWORDS)) # Can also be used with min_df for automatic stop word detection using term frequencies
 
 class TopicModeler:
     def __init__(self, embedding_model, umap_model, hdbscan_model):
@@ -38,7 +45,7 @@ class TopicModeler:
         # Initialize BERTopic with the representation model
         self.model = BERTopic(
             language="german",
-            vectorizer_model=vectorizer, # not working - use later in update_topics which actually works
+            #vectorizer_model=vectorizer, # not working - use later in update_topics which actually works
             embedding_model=embedding_model,
             umap_model=umap_model,
             hdbscan_model=hdbscan_model,

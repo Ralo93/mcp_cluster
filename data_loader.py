@@ -7,6 +7,17 @@ from sqlalchemy import create_engine, text
 
 import ast  # this is against some sqlalchemy + psy
 
+DB_CONFIG = {
+    'user': 'postgres',
+    'password': 'postgres',
+    'host': 'localhost',
+    'port': '5432',
+    'database': 'cluster',
+    'document_table': 'speeches'
+}
+
+
+
 @dataclass
 class Speech:
     content: str
@@ -25,7 +36,7 @@ def build_db_url(cfg):
     return f"postgresql://{cfg['user']}:{cfg['password']}@{cfg['host']}:{cfg['port']}/{cfg['database']}"
 
 class DataLoader:
-    def __init__(self, csv_path, db_config):
+    def __init__(self, csv_path=None, db_config=DB_CONFIG):
         self.csv_path = csv_path
         self.db_config = db_config
         self.db_url = build_db_url(db_config)

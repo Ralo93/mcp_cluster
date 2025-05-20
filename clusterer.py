@@ -10,7 +10,8 @@ class Clusterer:
             min_cluster_size=min_cluster_size, 
             metric='euclidean', 
             cluster_selection_method='eom',
-            prediction_data=True  # Add this parameter
+            prediction_data=True,  # Add this parameter
+            gen_min_span_tree=True  # Add this for better cluster persistence
         )
         self.reduced = None
 

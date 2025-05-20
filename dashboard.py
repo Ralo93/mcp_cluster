@@ -470,6 +470,7 @@ def load_2d_embeddings(speeches, force_recalculate=False):
             
             # Verify dimensions match
             if len(embeddings_2d) == len(speeches):
+                print("Found caches 2d representations! Returning embeddings_2d")
                 return embeddings_2d
             else:
                 print(f"⚠️ Cache size mismatch: {len(embeddings_2d)} vs {len(speeches)} speeches")

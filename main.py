@@ -28,8 +28,8 @@ def main():
     DB_URL = build_db_url(DB_CONFIG)
 
     # === Flags for processing steps ===
-    LOAD_FROM_DB = True  # Set to True to load from DB instead of CSV
-    SKIP_EMBEDDING = True  # Set to True to skip embedding generation
+    LOAD_FROM_DB = False  # Set to True to load from DB instead of CSV
+    SKIP_EMBEDDING = False  # Set to True to skip embedding generation
     SKIP_CLUSTERING = False  # Set to True to skip clustering
     SKIP_TOPIC_MODELING = False  # Set to True to skip topic modeling
     #SKIP_DASHBOARD = False  # Set to True to skip dashboard
@@ -106,15 +106,11 @@ def main():
             for i, s in enumerate(speech_objs):
                 s.embedding = embeddings[i].tolist()
                 
-            # Store embeddings in pgvector table
-            embedder.store_pgvector(embeddings, ids=[str(i) for i in range(len(speech_objs))])
-
-            # Save embedding model if it's a HuggingFace model
-            if hasattr(embedder.model, "save_pretrained"):
-                embedder.model.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
-                embedder.tokenizer.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
-            else:
-                print("⚠️ Embedding model is not a HuggingFace model and cannot be saved this way.")
+            embedder.model.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
+            embedder.tokenizer.save_pretrained(os.path.join(MODEL_DIR, "embedding_model"))
+            print("EMBEDDING MODEL SAVED")
+            #else:
+             #   print("⚠️ Embedding model is not a HuggingFace model and cannot be saved this way.")
         else:
             print("✅ Using existing embeddings.")
             embedder = Embedder(db_url=DB_URL)
@@ -136,12 +132,7 @@ def main():
                 s.cluster = int(clusters[i])
                 s.cluster_desc = f"Cluster {clusters[i]}"
 
-                        # Save UMAP reducer and HDBSCAN clusterer
-            joblib.dump(clusterer.umap, os.path.join(MODEL_DIR, "umap_model.pkl"))
-            joblib.dump(clusterer.hdbscan, os.path.join(MODEL_DIR, "hdbscan_model.pkl"))
 
-            #reduced_2d = UMAP(n_components=2, min_dist=0.0, metric='cosine').fit_transform(embeddings)
-            #joblib.dump(reduced_2d, os.path.join(MODEL_DIR, "reduced_2d_projection.pkl"))
 
         else:
             print("✅ Skipping clustering.")
@@ -150,7 +141,6 @@ def main():
             #reduced = clusterer.reduce(embeddings)
             #reduced_2d = UMAP(n_components=2, min_dist=0.0, metric='cosine').fit_transform(embeddings)
             #joblib.dump(reduced_2d, os.path.join(MODEL_DIR, "reduced_2d_projection.pkl"))
-
 
 
         # === Topic Modeling ===
@@ -192,7 +182,6 @@ def main():
         print(f"🚨 Error in main process: {str(e)}")
         import traceback
         traceback.print_exc()
-
 
     print("🏁 Process completed.")
 

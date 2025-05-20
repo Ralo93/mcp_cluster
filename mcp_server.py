@@ -10,22 +10,6 @@ from typing import TypedDict
 class QueryInput(TypedDict):
     query: str
 
-@tool
-def predict(query: QueryInput) -> dict:
-    """
-    Query a PostgreSQL database using a local sentence embedding model and return results as JSON.
-
-    Args:
-        query (QueryInput): The textual query to encode and search for in the vector database.
-
-    Returns:
-        dict: A dictionary containing a list of the top matching results with metadata, or None if an error occurred.
-
-    Raises:
-        Exception: If table verification or query execution fails.
-
-    """
-    return query_with_local_model(query)
 
 
 # Reuse your existing functions
@@ -155,8 +139,7 @@ def query_with_local_model(query: str) -> Optional[Dict[str, Any]]:
         }
 
 
-demo = gr.Interface(fn=predict, inputs="text", outputs="json")
-
+demo = gr.Interface(fn=query_with_local_model, inputs="text", outputs="json")
 
 # In your server code:
 if __name__ == "__main__":
