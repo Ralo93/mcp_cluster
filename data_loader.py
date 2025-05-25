@@ -3,8 +3,6 @@ import json
 from typing import Optional, List
 import pandas as pd
 from sqlalchemy import create_engine, text
-
-
 import ast  # this is against some sqlalchemy + psy
 
 DB_CONFIG = {
@@ -15,7 +13,6 @@ DB_CONFIG = {
     'database': 'cluster',
     'document_table': 'speeches'
 }
-
 
 
 @dataclass

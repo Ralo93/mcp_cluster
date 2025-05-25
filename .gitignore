@@ -6,7 +6,6 @@ dist/
 wheels/
 *.egg-info
 
-data/
 config.py
 # Virtual environments
 .venv
