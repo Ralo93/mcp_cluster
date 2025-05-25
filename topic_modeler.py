@@ -14,6 +14,8 @@ from bertopic.representation import MaximalMarginalRelevance
 
 from sklearn.feature_extraction.text import CountVectorizer
 
+
+# Gold standard by manual fine-tuning
 CUSTOM_STOPWORDS = {
 
     "herr", "wirklich", "dem", "war", "deshalb", 
