@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+mlruns/
 
 config.py
 # Virtual environments

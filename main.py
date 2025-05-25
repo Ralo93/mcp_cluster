@@ -13,6 +13,7 @@ import joblib
 
 LENGTH_DESC = 10 # no need to also change it in topic_modeler
 MIN_CLUSTER_SIZE = 100
+MAX_CHARS = 2000 # safe limit
 
 def main():
     # === Configuration ===
@@ -93,14 +94,21 @@ def main():
         
         # Check if all speeches have embeddings already
         has_embeddings = all(s.embedding is not None for s in speech_objs)
+
+        
+
+        texts = [text[:MAX_CHARS] for text in texts]
         
         # === Embedding ===
         if not SKIP_EMBEDDING:
             print("🔄 Generating embeddings...")
+            lengths = [len(text) for text in texts]
+            print(f"📏 Text length stats — Max: {max(lengths)}, Mean: {sum(lengths)//len(lengths)}, 95th percentile: {sorted(lengths)[int(0.95 * len(lengths))]}, 85th percentile: {sorted(lengths)[int(0.85 * len(lengths))]}")
+
 
             #TODO Changed Embedding Model: intfloat/multilingual-e5-large
-            embedder = Embedder(db_url=DB_URL)#, model_name="intfloat/multilingual-e5-large")
-            embeddings = embedder.encode(texts)
+            embedder = Embedder(db_url=DB_URL, max_chars=MAX_CHARS)#, model_name="intfloat/multilingual-e5-large")
+            embeddings = embedder.encode(texts, batch_size=32)
             
             # Assign embeddings to speech objects
             for i, s in enumerate(speech_objs):
@@ -149,6 +157,7 @@ def main():
         if not SKIP_TOPIC_MODELING:
             print("🔄 Generating topic model...")
             topic_modeler = TopicModeler(embedder.model, clusterer.umap, clusterer.hdbscan)
+            print("starting topic modeler fitting")
             tm = topic_modeler.fit(texts, embeddings)
             
             # Use the new transform method that handles missing prediction data

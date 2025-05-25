@@ -135,7 +135,7 @@ class DataLoader:
                 position TEXT,
                 date TEXT,
                 faction TEXT,
-                embedding VECTOR(384), 
+                embedding VECTOR(768), 
                 cluster INTEGER,
                 topic INTEGER,
                 topic_desc TEXT,
