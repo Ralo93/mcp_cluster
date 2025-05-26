@@ -363,7 +363,7 @@ def main():
         
         # Load data
         loader = DataLoader(CSV_PATH, DB_CONFIG)
-        speeches_df = loader.load_from_db()
+        speeches_df = loader.load_from_db(amount=50)
         
         if speeches_df is None or speeches_df.empty:
             raise ValueError("No speeches found in the database.")

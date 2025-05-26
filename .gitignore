@@ -8,6 +8,8 @@ wheels/
 mlruns/
 
 .env
+kg_storage/
+kg_exports/
 
 config.py
 # Virtual environments

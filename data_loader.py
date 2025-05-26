@@ -243,7 +243,7 @@ class DataLoader:
             traceback.print_exc()
             return 0
             
-    def load_from_db(self, table=None):
+    def load_from_db(self, amount=None, table=None):
         """Load speeches from database"""
         if table is None:
             table = self.db_config.get("document_table", "speeches")
@@ -254,7 +254,10 @@ class DataLoader:
             
             # Adjust query based on vector availability
             if vector_available:
-                query = f"SELECT * FROM {table}"
+                if amount != None:
+                    query = f"SELECT * FROM {table} LIMIT {amount}"
+                else:
+                    query = f"SELECT * FROM {table}"
             else:
                 query = f"SELECT id, content, politician, term, position, date, faction, embedding_json, cluster, topic, topic_desc, cluster_desc FROM {table}"
                 

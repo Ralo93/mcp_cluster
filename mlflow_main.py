@@ -99,7 +99,7 @@ def evaluate_clustering(embeddings_2d, labels):
 
 
 def run_clustering_experiment(embeddings, texts, min_cluster_size, min_dist, n_components, umap_metric="cosine"):
-    mlflow.set_experiment("german_speeches_clustering_test_visualization2")
+    mlflow.set_experiment("german_speeches_clustering_test_visualization4")
 
     with mlflow.start_run():
         mlflow.log_param("min_cluster_size", min_cluster_size)
@@ -161,7 +161,7 @@ if __name__ == "__main__":
             umap_metric=params['umap_metric']
         )
 
-    result = gp_minimize(objective, space, n_calls=10, random_state=42)
+    result = gp_minimize(objective, space, n_calls=20, random_state=42)
 
     import joblib
 
